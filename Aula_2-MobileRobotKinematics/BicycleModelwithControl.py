@@ -4,7 +4,7 @@ import pygame
 import math
 
 
-class Envir:  # Environment class
+class Env:  # Environment class
     def __init__(self, dimentions):
         # Colors
         self.black = (0, 0, 0)
@@ -31,8 +31,8 @@ class Envir:  # Environment class
         # Trail
         self.trail_set = []
 
-    def write_info(self, Vl, Vr, theta, gamma):
-        Pose = f"x = {Vl} y = {Vr} theta = {int(math.degrees(theta))} gamma = {math.degrees(gamma)}"
+    def write_info(self, x, y, velocity, theta):
+        Pose = f"x = {x}; y = {y}; v = {velocity}; theta = {int(math.degrees(theta))}"
         self.text = self.font.render(Pose, True, self.white, self.black)
         self.map.blit(self.text, self.textRect)
 
@@ -60,16 +60,18 @@ class Envir:  # Environment class
 
 
 class Robot:
-    def __init__(self, startpos, robotImg, width):
+    def __init__(self, startPos, desiredPos, robotImg, width):
       # Initial conditions
         self.w = width
-        self.x = startpos[0]
-        self.y = startpos[1]
+        self.x = startPos[0]
+        self.y = startPos[1]
+        self.xw, self.yw = desiredPos
         self.theta = 0
         self.gamma = 0
-        self.m2p = 3779.52  # meters to pixels
-        self.maxspeed = 0.02*self.m2p
-        self.minspeed = -0.02*self.m2p
+        self.v = 0
+        self.Kv = 0.1
+        self.Kh = 0.05
+        self.thetaw = 0
 
         # Robot
         self.img = pygame.image.load(robotImg)
@@ -80,19 +82,15 @@ class Robot:
         map.blit(self.rotated, self.rect)
 
     def move(self, event=None):
-        if event is not None:
-            if event.type == pygame.KEYDOWN:
-                # Left wheel - velocity
-                if event.key == pygame.K_q:  # Increase
-                    self.gamma += 0.0001*self.m2p
-                elif event.key == pygame.K_a:  # Decrease
-                    self.gamma -= 0.0001*self.m2p
-
-         # Mathematical model
-        v = 20
-        self.x += v*math.cos(self.theta)*dt
-        self.y -= v*math.sin(self.theta)*dt
-        self.theta += ((v/self.w)*math.tan(self.gamma))*dt
+        # Mathematical model
+        # if (self.xw == self.x and self.yw == self.y):
+        #     return
+        self.v = self.Kv * math.sqrt(math.pow(self.xw - self.x, 2) + math.pow(self.yw - self.y, 2))
+        self.x += self.v * math.cos(self.theta) * dt
+        self.y -= self.v * math.sin(self.theta) * dt
+        self.thetaw = -math.atan2((self.yw - self.y), (self.xw - self.x))
+        self.gamma = self.Kh * (self.thetaw - self.theta)
+        self.theta += ((self.v / self.w) * math.tan(self.gamma)) * dt
 
         # Reset theta
         if (self.theta > 2*math.pi or self.theta < -2*math.pi):
@@ -115,14 +113,15 @@ dims = (600, 1200)
 running = True
 
 # Environment
-environment = Envir(dims)
+environment = Env(dims)
 
 # Robot
-start_pos = (200, 200)
+start_pos = (500, 500)
+desired_pos = (50, 50)
 img_add = "robo.png"
 # robot_width = 0.01*3779.52 # 1cm
-robot_width = 8  # 8 pixels
-robot = Robot(start_pos, img_add, robot_width)
+robot_width = 1  # 8 pixels
+robot = Robot(start_pos, desired_pos, img_add, robot_width)
 
 # dt
 dt = 0
@@ -146,8 +145,7 @@ while running:
     environment.map.fill(environment.black)
     robot.move()
 
-    environment.write_info(int(robot.x), int(
-        robot.y), robot.theta, robot.gamma)
+    environment.write_info(int(robot.x), int(robot.y), round(robot.v, 2), robot.theta)
 
     robot.draw(environment.map)
     environment.robot_frame((robot.x, robot.y), robot.theta)
