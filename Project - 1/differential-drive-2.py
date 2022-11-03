@@ -74,7 +74,7 @@ class Robot:
         self.Kv = 0.1
         self.Kh = 0.05
         self.thetaw = 0
-        self.realPositions = []
+        self.realPositions = [[self.x, self.y, self.theta]]
         self.deadReckPositions = [[self.x, self.y, self.theta]]
         self.positionsWithNoises = []
 
@@ -89,32 +89,43 @@ class Robot:
     def move(self, event=None):
         # Mathematical differential-drive model
 
-        b = self.w
-        v = 0.0005
-        delta_r_left = 20
-        delta_r_right = b + delta_r_left
-        delta_theta = (delta_r_right - delta_r_left)/b
-        delta_s = (delta_r_right + delta_r_left)/2
-        delta_x = delta_s*math.cos(self.theta + delta_theta/2)
-        delta_y = delta_s*math.sin(self.theta + delta_theta/2)
+        x_last, y_last, theta_last = self.realPositions[-1]
 
-        self.x = delta_x*v
-        self.y = delta_y*v
-        self.theta = delta_theta
+        delta_x = self.x - x_last
+        delta_y = self.y - y_last
+        delta_theta = self.theta - theta_last
+        delta_d = math.sqrt(delta_x**2 + delta_y**2)
 
-        self.realPositions.append([self.x, self.y, delta_theta])
+        self.x = x_last + delta_d*math.cos(self.theta)
+        self.y = y_last + delta_d*math.sin(self.theta)
+        self.theta = theta_last + delta_theta
 
-        kr = 0.0001
-        kl = 0.0001
+        self.realPositions.append([self.x, self.y, self.theta])
+
+
+        # Estimating Pose
+
+        sigma_d = 0.0001
+        sigma_theta = 0.0001
+
+        theta_v = ??
 
         v = [
-            [kr*abs(delta_r_left), 0],
-            [0,kl*abs(delta_r_right)]
+            [sigma_d**2, 0],
+            [0,sigma_theta**2]
         ]
 
-        jacobi = [[1,0,-delta_s*math.sin(self.theta + delta_theta/2)], 
-                [0,1,delta_s*math.cos(self.theta + delta_theta/2)],
-                [0,0,1]]
+        fx = [
+                [1,0,-delta_d*math.sin(theta_v)], 
+                [0,1,delta_d*math.cos(theta_v)],
+                [0,0,1]
+            ]
+
+        fv =[
+                [math.sin(theta_v), 0], 
+                [math.cos(theta_v), 0],
+                [0,1]
+            ]
 
         # Reset theta
         if (self.theta > 2*math.pi or self.theta < -2*math.pi):
