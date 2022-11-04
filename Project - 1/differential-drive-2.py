@@ -34,8 +34,8 @@ class Env:  # Environment class
         self.trail_set = []
 
     def write_info(self, x, y, velocity, theta):
-        # Pose = f"x = {x}; y = {y}; v = {velocity}; theta = {int(math.degrees(theta))}"
-        self.text = self.font.render('Pose', True, self.white, self.black)
+        Pose = f"x = {x}; y = {y}; v = {velocity}; theta = {int(math.degrees(theta))}"
+        self.text = self.font.render(Pose, True, self.white, self.black)
         self.map.blit(self.text, self.textRect)
 
     def trail(self, pos):
@@ -79,13 +79,13 @@ class Robot:
         self.x = startPos[0]
         self.y = startPos[1]
         self.xw, self.yw = desiredPos
-        self.theta = 0
+        self.theta = 5
         self.gamma = 0
         self.v = 0.02
         self.Kv = 0.1
         self.Kh = 0.05
         self.thetaw = 0
-        self.positions = [[self.x + 1, self.y + 1, self.theta]]
+        self.positions = []
 
         # Robot
         self.img = pygame.image.load(robotImg)
@@ -120,32 +120,39 @@ class Robot:
 
         odometry.x = x_last_v + (delta_d + odometry.vd)*math.cos(odometry.theta)
         odometry.y = y_last_v + (delta_d + odometry.vd)*math.sin(odometry.theta)
-        odometry.theta = theta_last + delta_d + odometry.vtheta
+        odometry.theta = theta_last_v + delta_d + odometry.vtheta
+        pose = [odometry.x, odometry.y, odometry.theta]
 
-        odometry.positions.append([odometry.x, odometry.y, odometry.theta])
+        odometry.positions.append(pose)
 
-        # v = [
-        #     [odometry.sigma_d**2, 0],
-        #     [0,odometry.sigma_theta**2]
-        # ]
+        v = [
+            [odometry.sigma_d**2, 0],
+            [0,odometry.sigma_theta**2]
+        ]
 
-        # fx = [
-        #         [1,0,-delta_d*math.sin(theta_v)], 
-        #         [0,1,delta_d*math.cos(theta_v)],
-        #         [0,0,1]
-        #     ]
+        fx = [
+                [1,0,-delta_d*math.sin(odometry.vtheta)], 
+                [0,1,delta_d*math.cos(odometry.vtheta)],
+                [0,0,1]
+            ]
 
-        # fv =[
-        #         [math.sin(theta_v), 0], 
-        #         [math.cos(theta_v), 0],
-        #         [0,1]
-        #     ]
+        fx_t = np.array(fx).transpose()
 
-        # Reset theta
+        fv = [
+                [math.sin(odometry.vtheta), 0], 
+                [math.cos(odometry.vtheta), 0],
+                [0,1]
+            ]
+
+        fv_t = np.array(fv).transpose()
+        fv_t = np.append(fv_t, [[1,1,1]], axis=0)
         
-        if (self.x > 1000):
-            self.v = 0
+        pose_k = np.sum(
+            np.matmul(fx, pose, fx_t), 
+            np.matmul(np.array(fv), np.array(v), fv_t)
+            )
 
+        # Reset 
         if (self.theta > 2*math.pi or self.theta < -2*math.pi):
             self.theta = 0
 
@@ -169,8 +176,8 @@ running = True
 environment = Env(dims)
 
 # Robot
-start_pos = (500, 500)
-desired_pos = (50, 50)
+start_pos = (-10, -10)
+desired_pos = (0, 0)
 img_add = "robo.png"
 # robot_width = 0.01*3779.52 # 1cm
 robot_width = 1  # 8 pixels
