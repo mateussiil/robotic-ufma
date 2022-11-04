@@ -145,11 +145,11 @@ class Robot:
             ]
 
         fv_t = np.array(fv).transpose()
-        fv_t = np.append(fv_t, [[1,1,1]], axis=0)
+        # fv_t = np.append(fv_t, [[1,1,1]], axis=0)
         
-        pose_k = np.sum(
-            np.matmul(fx, pose, fx_t), 
-            np.matmul(np.array(fv), np.array(v), fv_t)
+        pose_k = np.add(
+            np.dot(np.dot(fx, pose), fx_t), 
+            np.dot(np.dot(fv, v), fv_t)
             )
 
         # Reset 
