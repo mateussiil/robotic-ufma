@@ -60,6 +60,17 @@ class Env:  # Environment class
         pygame.draw.line(self.map, self.green,
                          (centerx, centery), y_axis, 3)  # Y axis in green
 
+class OdometryError:
+    def __init__(self, startPos):
+        self.x = startPos[0]
+        self.y = startPos[1]
+        self.theta = 0
+        self.vd = 0.0001
+        self.vtheta = 0.0001
+        self.positions = [[self.x + 1, self.y + 1, self.theta]]
+        self.sigma_d = 0.001
+        self.sigma_theta = 0.001
+    
 
 class Robot:
     def __init__(self, startPos, desiredPos, robotImg, width):
@@ -70,13 +81,11 @@ class Robot:
         self.xw, self.yw = desiredPos
         self.theta = 0
         self.gamma = 0
-        self.v = 0
+        self.v = 0.02
         self.Kv = 0.1
         self.Kh = 0.05
         self.thetaw = 0
-        self.realPositions = [[self.x, self.y, self.theta]]
-        self.deadReckPositions = [[self.x, self.y, self.theta]]
-        self.positionsWithNoises = []
+        self.positions = [[self.x + 1, self.y + 1, self.theta]]
 
         # Robot
         self.img = pygame.image.load(robotImg)
@@ -89,7 +98,10 @@ class Robot:
     def move(self, event=None):
         # Mathematical differential-drive model
 
-        x_last, y_last, theta_last = self.realPositions[-1]
+        if(len(self.positions) > 1):
+            x_last, y_last, theta_last = self.positions[-1]
+        else:
+            x_last, y_last, theta_last = [0,0,0]
 
         delta_x = self.x - x_last
         delta_y = self.y - y_last
@@ -100,34 +112,40 @@ class Robot:
         self.y = y_last + delta_d*math.sin(self.theta)
         self.theta = theta_last + delta_theta
 
-        self.realPositions.append([self.x, self.y, self.theta])
-
+        self.positions.append([self.x, self.y, self.theta])
 
         # Estimating Pose
 
-        sigma_d = 0.0001
-        sigma_theta = 0.0001
+        x_last_v, y_last_v, theta_last_v = odometry.positions[-1]
 
-        theta_v = ??
+        odometry.x = x_last_v + (delta_d + odometry.vd)*math.cos(odometry.theta)
+        odometry.y = y_last_v + (delta_d + odometry.vd)*math.sin(odometry.theta)
+        odometry.theta = theta_last + delta_d + odometry.vtheta
 
-        v = [
-            [sigma_d**2, 0],
-            [0,sigma_theta**2]
-        ]
+        odometry.positions.append([odometry.x, odometry.y, odometry.theta])
 
-        fx = [
-                [1,0,-delta_d*math.sin(theta_v)], 
-                [0,1,delta_d*math.cos(theta_v)],
-                [0,0,1]
-            ]
+        # v = [
+        #     [odometry.sigma_d**2, 0],
+        #     [0,odometry.sigma_theta**2]
+        # ]
 
-        fv =[
-                [math.sin(theta_v), 0], 
-                [math.cos(theta_v), 0],
-                [0,1]
-            ]
+        # fx = [
+        #         [1,0,-delta_d*math.sin(theta_v)], 
+        #         [0,1,delta_d*math.cos(theta_v)],
+        #         [0,0,1]
+        #     ]
+
+        # fv =[
+        #         [math.sin(theta_v), 0], 
+        #         [math.cos(theta_v), 0],
+        #         [0,1]
+        #     ]
 
         # Reset theta
+        
+        if (self.x > 1000):
+            self.v = 0
+
         if (self.theta > 2*math.pi or self.theta < -2*math.pi):
             self.theta = 0
 
@@ -156,6 +174,7 @@ desired_pos = (50, 50)
 img_add = "robo.png"
 # robot_width = 0.01*3779.52 # 1cm
 robot_width = 1  # 8 pixels
+odometry = OdometryError(start_pos)
 robot = Robot(start_pos, desired_pos, img_add, robot_width)
 # dt
 dt = 0
@@ -188,14 +207,24 @@ while running:
 
     environment.trail((robot.x, robot.y))
 
-x_real = [x[0] for x in robot.realPositions]
-y_real= [x[1] for x in robot.realPositions]
+x_real = []
+y_real = []
+x_error = []
+y_error = []
+
+for value in robot.positions:
+    x_real.append(value[0])
+    y_real.append(value[1])
+
+for value in odometry.positions:
+    x_error.append(value[0])
+    y_error.append(value[1])
 
 plt.figure()
-# plt.subplot(211)
+plt.subplot(211)
 plt.plot(x_real, y_real)
 
-# # plt.subplot(212)
-# plt.plot([x for x,y,z in robot.deadReckPositions], [y for x,y,z in robot.deadReckPositions])
-# plt.grid()
+plt.subplot(212)
+plt.plot(x_error, y_error)
+plt.grid()
 plt.show()
