@@ -1,5 +1,10 @@
+# Codigo baseado em https://www.youtube.com/watch?v=zHboXMY45YU&list=WL&index=1
+
 import pygame
 import math
+import numpy as np
+from numpy import array, zeros, diag, diagflat, dot
+import matplotlib.pyplot as plt
 
 
 class Env:  # Environment class
@@ -57,18 +62,27 @@ class Env:  # Environment class
                          (centerx, centery), y_axis, 3)  # Y axis in green
 
 
+class Odometry:
+    def __init__(self):
+        self.vd = 0.1
+        self.vtheta = 0.001
+        self.sigma_d = 0.0001
+        self.sigma_theta = 0.0001
+
+
 class Robot:
-    def __init__(self, startPos, desiredPos, robotImg, width):
+    def __init__(self, startPos, robotImg, width, odometry):
       # Initial conditions
         self.w = width
-        self.x, self.y = startPos
-        self.xw, self.yw = desiredPos
+        self.x = startPos[0]
+        self.y = startPos[1]
         self.theta = 0
-        self.gamma = 0
-        self.v = 0
-        self.Kv = 0.1
-        self.Kh = 0.05
-        self.thetaw = 0
+        self.delta_d = 1.5
+        self.delta_theta = 0.001
+        self.odometry = odometry
+        self.positions = [[self.x, self.y, self.theta]]
+        self.errorPositions = [[self.x, self.y, self.theta]]
+        self.kalmanPositions = [[self.x, self.y, self.theta]]
 
         # Robot
         self.img = pygame.image.load(robotImg)
@@ -78,19 +92,62 @@ class Robot:
     def draw(self, map):
         map.blit(self.rotated, self.rect)
 
-    def move(self, event=None):
-        self.v = self.Kv * \
-            math.sqrt(math.pow(self.xw - self.x, 2) +
-                      math.pow(self.yw - self.y, 2))
-        self.x += self.v * math.cos(self.theta) * dt
-        self.y -= self.v * math.sin(self.theta) * dt
-        self.thetaw = -math.atan2((self.yw - self.y), (self.xw - self.x))
-        self.gamma = self.Kh * (self.thetaw - self.theta)
-        self.theta += ((self.v / self.w) * math.tan(self.gamma)) * dt
+    def estimatePose(self):
+        # Estimating Pose
+        x_last_v, y_last_v, theta_last_v = self.errorPositions[-1]
 
-        # Reset theta
+        errorX = x_last_v + (self.delta_d + self.odometry.vd) * \
+            math.cos(self.theta)
+        errorY = y_last_v + (self.delta_d + self.odometry.vd) * \
+            math.sin(self.theta)
+        errorTheta = theta_last_v + self.delta_theta + self.odometry.vtheta
+
+        error_pose = [errorX, errorY, errorTheta]
+
+        self.errorPositions.append(error_pose)
+
+        v = [
+            [self.odometry.sigma_d**2, 0],
+            [0, self.odometry.sigma_theta**2]
+        ]
+
+        fx = [
+            [1, 0, -self.delta_d*math.sin(self.odometry.vtheta)],
+            [0, 1, self.delta_d*math.cos(self.odometry.vtheta)],
+            [0, 0, 1]
+        ]
+
+        fx_t = np.array(fx).transpose()
+
+        fv = [
+            [math.sin(self.odometry.vtheta), 0],
+            [math.cos(self.odometry.vtheta), 0],
+            [0, 1]
+        ]
+
+        fv_t = np.array(fv).transpose()
+
+        estimated_pose = np.add(
+            np.dot(np.dot(fx, error_pose), fx_t),
+            np.dot(np.dot(fv, v), fv_t)
+        )
+
+        self.kalmanPositions.append(estimated_pose[1])
+
+    def move(self, event=None):
+        x_last, y_last, theta_last = self.positions[-1]
+
+        self.x = x_last + self.delta_d*math.cos(self.theta)
+        self.y = y_last + self.delta_d*math.sin(self.theta)
+        self.theta = theta_last + self.delta_theta
+
         if (self.theta > 2*math.pi or self.theta < -2*math.pi):
             self.theta = 0
+
+        real_pose = [self.x, self.y, self.theta]
+        self.positions.append(real_pose)
+
+        self.estimatePose()
 
         #Change in orientation
         # Rotate image 'theta' with a scale operation of 1 - no change in size
@@ -112,13 +169,11 @@ running = True
 environment = Env(dims)
 
 # Robot
-start_pos = (500, 500)
-desired_pos = (50, 50)
+start_pos = (300, 300)
 img_add = "robot.png"
 # robot_width = 0.01*3779.52 # 1cm
 robot_width = 1  # 8 pixels
-robot = Robot(start_pos, desired_pos, img_add, robot_width)
-
+robot = Robot(start_pos, img_add, robot_width, Odometry())
 # dt
 dt = 0
 lasttime = pygame.time.get_ticks()
@@ -126,25 +181,49 @@ lasttime = pygame.time.get_ticks()
 # Simulation loop
 while running:
     # Verify events
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:  # Quit the window
-            running = False
-        robot.move(event)
 
     # Time change
     # Current minus last time # Time in seconds
     dt = (pygame.time.get_ticks() - lasttime)/1000
     lasttime = pygame.time.get_ticks()  # Update last time
 
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:  # Quit the window
+            running = False
+        robot.move(event)
+
     # Update
     pygame.display.update()
     environment.map.fill(environment.black)
     robot.move()
 
-    environment.write_info(int(robot.x), int(
-        robot.y), round(robot.v, 2), robot.theta)
-
     robot.draw(environment.map)
     environment.robot_frame((robot.x, robot.y), robot.theta)
 
     environment.trail((robot.x, robot.y))
+
+x_real = []
+y_real = []
+x_error = []
+y_error = []
+x_filterKalman = []
+y_filterKalman = []
+
+for value in robot.positions:
+    x_real.append(value[0])
+    y_real.append(value[1])
+
+for value in robot.errorPositions:
+    x_error.append(value[0])
+    y_error.append(value[1])
+
+for value in robot.kalmanPositions:
+    x_filterKalman.append(value[0])
+    y_filterKalman.append(value[1])
+
+plt.figure()
+plt.grid()
+plt.plot(x_real, y_real, 'g', label="Robot")
+plt.plot(x_filterKalman, y_filterKalman, 'b--', label="Kalman Filter")
+plt.legend(loc='upper center')
+plt.show()
