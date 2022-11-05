@@ -6,6 +6,7 @@ import numpy as np
 from numpy import array, zeros, diag, diagflat, dot
 import matplotlib.pyplot as plt
 
+
 class Env:  # Environment class
     def __init__(self, dimentions):
         # Colors
@@ -60,17 +61,18 @@ class Env:  # Environment class
         pygame.draw.line(self.map, self.green,
                          (centerx, centery), y_axis, 3)  # Y axis in green
 
+
 class OdometryError:
     def __init__(self, startPos):
         self.x = startPos[0]
         self.y = startPos[1]
         self.theta = 0
-        self.vd = 0.0001
-        self.vtheta = 0.0001
-        self.positions = [[self.x + 1, self.y + 1, self.theta]]
+        self.vd = 0.001
+        self.vtheta = 0.0000
+        self.positions = [[self.x, self.y, self.theta]]
         self.sigma_d = 0.001
         self.sigma_theta = 0.001
-    
+
 
 class Robot:
     def __init__(self, startPos, desiredPos, robotImg, width):
@@ -79,13 +81,13 @@ class Robot:
         self.x = startPos[0]
         self.y = startPos[1]
         self.xw, self.yw = desiredPos
-        self.theta = 5
+        self.theta = 0
         self.gamma = 0
         self.v = 0.02
         self.Kv = 0.1
         self.Kh = 0.05
         self.thetaw = 0
-        self.positions = []
+        self.positions = [[self.x, self.y, self.theta]]
 
         # Robot
         self.img = pygame.image.load(robotImg)
@@ -98,61 +100,65 @@ class Robot:
     def move(self, event=None):
         # Mathematical differential-drive model
 
-        if(len(self.positions) > 1):
-            x_last, y_last, theta_last = self.positions[-1]
-        else:
-            x_last, y_last, theta_last = [0,0,0]
+        x_last, y_last, theta_last = self.positions[-1]
 
         delta_x = self.x - x_last
         delta_y = self.y - y_last
         delta_theta = self.theta - theta_last
-        delta_d = math.sqrt(delta_x**2 + delta_y**2)
+        # delta_theta = self.theta - theta_last
+        # delta_d = math.sqrt(delta_x**2 + delta_y**2)
+        delta_d = 1.5
 
         self.x = x_last + delta_d*math.cos(self.theta)
         self.y = y_last + delta_d*math.sin(self.theta)
+
         self.theta = theta_last + delta_theta
 
-        self.positions.append([self.x, self.y, self.theta])
+        real_pose = [self.x, self.y, self.theta]
+
+        self.positions.append(real_pose)
 
         # Estimating Pose
 
         x_last_v, y_last_v, theta_last_v = odometry.positions[-1]
 
-        odometry.x = x_last_v + (delta_d + odometry.vd)*math.cos(odometry.theta)
-        odometry.y = y_last_v + (delta_d + odometry.vd)*math.sin(odometry.theta)
-        odometry.theta = theta_last_v + delta_d + odometry.vtheta
-        pose = [odometry.x, odometry.y, odometry.theta]
+        odometry.x = x_last_v + (delta_d + odometry.vd) * \
+            math.cos(odometry.theta)
+        odometry.y = y_last_v + (delta_d + odometry.vd) * \
+            math.sin(odometry.theta)
+        odometry.theta = theta_last_v + delta_theta + odometry.vtheta
+        error_pose = [odometry.x, odometry.y, odometry.theta]
 
-        odometry.positions.append(pose)
+        odometry.positions.append(error_pose)
 
         v = [
             [odometry.sigma_d**2, 0],
-            [0,odometry.sigma_theta**2]
+            [0, odometry.sigma_theta**2]
         ]
 
         fx = [
-                [1,0,-delta_d*math.sin(odometry.vtheta)], 
-                [0,1,delta_d*math.cos(odometry.vtheta)],
-                [0,0,1]
-            ]
+            [1, 0, -delta_d*math.sin(odometry.vtheta)],
+            [0, 1, delta_d*math.cos(odometry.vtheta)],
+            [0, 0, 1]
+        ]
 
         fx_t = np.array(fx).transpose()
 
         fv = [
-                [math.sin(odometry.vtheta), 0], 
-                [math.cos(odometry.vtheta), 0],
-                [0,1]
-            ]
+            [math.sin(odometry.vtheta), 0],
+            [math.cos(odometry.vtheta), 0],
+            [0, 1]
+        ]
 
         fv_t = np.array(fv).transpose()
         # fv_t = np.append(fv_t, [[1,1,1]], axis=0)
-        
-        pose_k = np.add(
-            np.dot(np.dot(fx, pose), fx_t), 
-            np.dot(np.dot(fv, v), fv_t)
-            )
 
-        # Reset 
+        pose_k = np.add(
+            np.dot(np.dot(fx, error_pose), fx_t),
+            np.dot(np.dot(fv, v), fv_t)
+        )
+
+        # Reset
         if (self.theta > 2*math.pi or self.theta < -2*math.pi):
             self.theta = 0
 
@@ -176,7 +182,7 @@ running = True
 environment = Env(dims)
 
 # Robot
-start_pos = (-10, -10)
+start_pos = (50, 50)
 desired_pos = (0, 0)
 img_add = "robo.png"
 # robot_width = 0.01*3779.52 # 1cm
@@ -190,7 +196,7 @@ lasttime = pygame.time.get_ticks()
 # Simulation loop
 while running:
     # Verify events
-    
+
     # Time change
     # Current minus last time # Time in seconds
     dt = (pygame.time.get_ticks() - lasttime)/1000
@@ -201,13 +207,13 @@ while running:
             running = False
         robot.move(event)
 
-
     # Update
     pygame.display.update()
     environment.map.fill(environment.black)
     robot.move()
 
-    environment.write_info(int(robot.x), int(robot.y), round(robot.v, 2), robot.theta)
+    environment.write_info(int(robot.x), int(
+        robot.y), round(robot.v, 2), robot.theta)
 
     robot.draw(environment.map)
     environment.robot_frame((robot.x, robot.y), robot.theta)
@@ -229,9 +235,12 @@ for value in odometry.positions:
 
 plt.figure()
 plt.subplot(211)
+plt.title('Real')
+plt.grid()
 plt.plot(x_real, y_real)
 
 plt.subplot(212)
+plt.title('Error')
 plt.plot(x_error, y_error)
 plt.grid()
 plt.show()
