@@ -62,33 +62,30 @@ class Env:  # Environment class
                          (centerx, centery), y_axis, 3)  # Y axis in green
 
 
-class OdometryError:
-    def __init__(self, startPos):
-        self.x = startPos[0]
-        self.y = startPos[1]
-        self.theta = 5
-        self.vd = 0.0001
-        self.vtheta = 0.00001
-        self.positions = [[self.x, self.y, self.theta]]
-        self.sigma_d = 0.01
-        self.sigma_theta = 0.01
-        self.positionsKalman = [[self.x, self.y, self.theta]]
+class Odometry:
+    def __init__(self):
+        self.vd = 0.1
+        self.vtheta = 0.001
+        self.sigma_d = 0.0001
+        self.sigma_theta = 0.0001
 
 
 class Robot:
-    def __init__(self, startPos, desiredPos, robotImg, width):
+    def __init__(self, startPos, desiredPos, robotImg, width, odometry):
       # Initial conditions
         self.w = width
         self.x = startPos[0]
         self.y = startPos[1]
         self.xw, self.yw = desiredPos
-        self.theta = 5
+        self.theta = 0
         self.gamma = 0
+        self.delta_d = 1.5
+        self.delta_theta = 0.001
         self.v = 0.002
-        self.Kv = 0.1
-        self.Kh = 0.05
-        self.thetaw = 0
+        self.odometry = odometry
         self.positions = [[self.x, self.y, self.theta]]
+        self.errorPositions = [[self.x, self.y, self.theta]]
+        self.kalmanPositions = [[self.x, self.y, self.theta]]
 
         # Robot
         self.img = pygame.image.load(robotImg)
@@ -100,78 +97,73 @@ class Robot:
 
     def route(self):
         if (self.x < 1000 and self.y < 200):
-            self.theta = 0
+            self.delta_theta = 0
         if (self.x > 1000 and self.y < 100):
-            self.theta = 5
+            self.delta_theta = 5
         if (self.x < 1000 and self.y > 200):
-            self.theta = 25
+            self.delta_theta = 25
         if (self.x > 1000 and self.y > 100):
-            self.theta = 0
+            self.delta_theta = 0
 
-    def move(self, event=None):
-        # Mathematical differential-drive model
-
-        x_last, y_last, theta_last = self.positions[-1]
-
-        delta_x = self.x - x_last
-        delta_y = self.y - y_last
-        delta_theta = self.theta - theta_last
-        # delta_theta = self.theta - theta_last
-        # delta_d = math.sqrt(delta_x**2 + delta_y**2)
-        delta_d = 1.5
-
-        # self.route()
-        self.x = x_last + delta_d*math.cos(self.theta)
-        self.y = y_last + delta_d*math.sin(self.theta)
-
-        real_pose = [self.x, self.y, self.theta]
-
-        self.positions.append(real_pose)
-
+    def estimatePose(self):
         # Estimating Pose
-        x_last_v, y_last_v, theta_last_v = odometry.positions[-1]
+        x_last_v, y_last_v, theta_last_v = self.errorPositions[-1]
 
-        odometry.x = x_last_v + (delta_d + odometry.vd) * \
+        errorX = x_last_v + (self.delta_d + self.odometry.vd) * \
             math.cos(self.theta)
-        odometry.y = y_last_v + (delta_d + odometry.vd) * \
+        errorY = y_last_v + (self.delta_d + self.odometry.vd) * \
             math.sin(self.theta)
-        odometry.theta = theta_last_v + delta_theta + odometry.vtheta
-        error_pose = [odometry.x, odometry.y, odometry.theta]
+        errorTheta = theta_last_v + self.delta_theta + self.odometry.vtheta
 
-        odometry.positions.append(error_pose)
+        error_pose = [errorX, errorY, errorTheta]
+
+        self.errorPositions.append(error_pose)
 
         v = [
-            [odometry.sigma_d**2, 0],
-            [0, odometry.sigma_theta**2]
+            [self.odometry.sigma_d**2, 0],
+            [0, self.odometry.sigma_theta**2]
         ]
 
         fx = [
-            [1, 0, -delta_d*math.sin(odometry.vtheta)],
-            [0, 1, delta_d*math.cos(odometry.vtheta)],
+            [1, 0, -self.delta_d*math.sin(self.odometry.vtheta)],
+            [0, 1, self.delta_d*math.cos(self.odometry.vtheta)],
             [0, 0, 1]
         ]
 
         fx_t = np.array(fx).transpose()
 
         fv = [
-            [math.sin(odometry.vtheta), 0],
-            [math.cos(odometry.vtheta), 0],
+            [math.sin(self.odometry.vtheta), 0],
+            [math.cos(self.odometry.vtheta), 0],
             [0, 1]
         ]
 
         fv_t = np.array(fv).transpose()
-        # fv_t = np.append(fv_t, [[1,1,1]], axis=0)
 
         estimated_pose = np.add(
             np.dot(np.dot(fx, error_pose), fx_t),
             np.dot(np.dot(fv, v), fv_t)
         )
 
-        odometry.positionsKalman.append(estimated_pose[0])
+        self.kalmanPositions.append(estimated_pose[1])
 
-        # Reset
+    def move(self, event=None):
+        # Mathematical differential-drive model
+
+        x_last, y_last, theta_last = self.positions[-1]
+
+        # self.route()
+        self.x = x_last + self.delta_d*math.cos(self.theta)
+        self.y = y_last + self.delta_d*math.sin(self.theta)
+        self.theta = theta_last + self.delta_theta
+
         if (self.theta > 2*math.pi or self.theta < -2*math.pi):
             self.theta = 0
+
+        real_pose = [self.x, self.y, self.theta]
+        self.positions.append(real_pose)
+
+        self.estimatePose()
 
         #Change in orientation
         # Rotate image 'theta' with a scale operation of 1 - no change in size
@@ -193,13 +185,12 @@ running = True
 environment = Env(dims)
 
 # Robot
-start_pos = (600, 600)
+start_pos = (300, 300)
 desired_pos = (0, 0)
 img_add = "robo.png"
 # robot_width = 0.01*3779.52 # 1cm
 robot_width = 1  # 8 pixels
-odometry = OdometryError(start_pos)
-robot = Robot(start_pos, desired_pos, img_add, robot_width)
+robot = Robot(start_pos, desired_pos, img_add, robot_width, Odometry())
 # dt
 dt = 0
 lasttime = pygame.time.get_ticks()
@@ -242,11 +233,11 @@ for value in robot.positions:
     x_real.append(value[0])
     y_real.append(value[1])
 
-for value in odometry.positions:
+for value in robot.errorPositions:
     x_error.append(value[0])
     y_error.append(value[1])
 
-for value in odometry.positionsKalman:
+for value in robot.kalmanPositions:
     x_filterKalman.append(value[0])
     y_filterKalman.append(value[1])
 
