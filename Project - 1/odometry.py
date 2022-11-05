@@ -95,16 +95,6 @@ class Robot:
     def draw(self, map):
         map.blit(self.rotated, self.rect)
 
-    def route(self):
-        if (self.x < 1000 and self.y < 200):
-            self.delta_theta = 0
-        if (self.x > 1000 and self.y < 100):
-            self.delta_theta = 5
-        if (self.x < 1000 and self.y > 200):
-            self.delta_theta = 25
-        if (self.x > 1000 and self.y > 100):
-            self.delta_theta = 0
-
     def estimatePose(self):
         # Estimating Pose
         x_last_v, y_last_v, theta_last_v = self.errorPositions[-1]
@@ -148,11 +138,8 @@ class Robot:
         self.kalmanPositions.append(estimated_pose[1])
 
     def move(self, event=None):
-        # Mathematical differential-drive model
-
         x_last, y_last, theta_last = self.positions[-1]
 
-        # self.route()
         self.x = x_last + self.delta_d*math.cos(self.theta)
         self.y = y_last + self.delta_d*math.sin(self.theta)
         self.theta = theta_last + self.delta_theta
