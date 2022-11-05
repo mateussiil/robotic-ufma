@@ -72,6 +72,7 @@ class OdometryError:
         self.positions = [[self.x, self.y, self.theta]]
         self.sigma_d = 0.001
         self.sigma_theta = 0.001
+        self.positionsKalman = [[self.x, self.y, self.theta]]
 
 
 class Robot:
@@ -153,10 +154,12 @@ class Robot:
         fv_t = np.array(fv).transpose()
         # fv_t = np.append(fv_t, [[1,1,1]], axis=0)
 
-        pose_k = np.add(
+        estimated_pose = np.add(
             np.dot(np.dot(fx, error_pose), fx_t),
             np.dot(np.dot(fv, v), fv_t)
         )
+
+        odometry.positionsKalman.append(estimated_pose[0])
 
         # Reset
         if (self.theta > 2*math.pi or self.theta < -2*math.pi):
@@ -224,6 +227,8 @@ x_real = []
 y_real = []
 x_error = []
 y_error = []
+x_filterKalman = []
+y_filterKalman = []
 
 for value in robot.positions:
     x_real.append(value[0])
@@ -232,6 +237,10 @@ for value in robot.positions:
 for value in odometry.positions:
     x_error.append(value[0])
     y_error.append(value[1])
+
+for value in odometry.positionsKalman:
+    x_filterKalman.append(value[0])
+    y_filterKalman.append(value[1])
 
 plt.figure()
 plt.subplot(211)
@@ -242,5 +251,11 @@ plt.plot(x_real, y_real)
 plt.subplot(212)
 plt.title('Error')
 plt.plot(x_error, y_error)
+plt.grid()
+plt.show()
+
+plt.subplot(213)
+plt.title('Kalman')
+plt.plot(x_filterKalman, y_filterKalman)
 plt.grid()
 plt.show()
