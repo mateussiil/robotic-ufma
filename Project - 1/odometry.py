@@ -66,12 +66,12 @@ class OdometryError:
     def __init__(self, startPos):
         self.x = startPos[0]
         self.y = startPos[1]
-        self.theta = 0
-        self.vd = 0.001
-        self.vtheta = 0.0000
+        self.theta = 5
+        self.vd = 0.0001
+        self.vtheta = 0.00001
         self.positions = [[self.x, self.y, self.theta]]
-        self.sigma_d = 0.001
-        self.sigma_theta = 0.001
+        self.sigma_d = 0.01
+        self.sigma_theta = 0.01
         self.positionsKalman = [[self.x, self.y, self.theta]]
 
 
@@ -82,7 +82,7 @@ class Robot:
         self.x = startPos[0]
         self.y = startPos[1]
         self.xw, self.yw = desiredPos
-        self.theta = 0
+        self.theta = 5
         self.gamma = 0
         self.v = 0.02
         self.Kv = 0.1
@@ -110,17 +110,15 @@ class Robot:
         # delta_d = math.sqrt(delta_x**2 + delta_y**2)
         delta_d = 1.5
 
+        self.theta = 5
         self.x = x_last + delta_d*math.cos(self.theta)
         self.y = y_last + delta_d*math.sin(self.theta)
-
-        self.theta = theta_last + delta_theta
 
         real_pose = [self.x, self.y, self.theta]
 
         self.positions.append(real_pose)
 
         # Estimating Pose
-
         x_last_v, y_last_v, theta_last_v = odometry.positions[-1]
 
         odometry.x = x_last_v + (delta_d + odometry.vd) * \
@@ -185,7 +183,7 @@ running = True
 environment = Env(dims)
 
 # Robot
-start_pos = (50, 50)
+start_pos = (600, 600)
 desired_pos = (0, 0)
 img_add = "robo.png"
 # robot_width = 0.01*3779.52 # 1cm
@@ -243,19 +241,8 @@ for value in odometry.positionsKalman:
     y_filterKalman.append(value[1])
 
 plt.figure()
-plt.subplot(211)
-plt.title('Real')
 plt.grid()
-plt.plot(x_real, y_real)
-
-plt.subplot(212)
-plt.title('Error')
-plt.plot(x_error, y_error)
-plt.grid()
-plt.show()
-
-plt.subplot(213)
-plt.title('Kalman')
-plt.plot(x_filterKalman, y_filterKalman)
-plt.grid()
+plt.plot(x_real, y_real, 'g')
+plt.plot(x_error, y_error, 'r')
+plt.plot(x_filterKalman, y_filterKalman, 'b--')
 plt.show()
