@@ -84,7 +84,7 @@ class Robot:
         self.xw, self.yw = desiredPos
         self.theta = 5
         self.gamma = 0
-        self.v = 0.02
+        self.v = 0.002
         self.Kv = 0.1
         self.Kh = 0.05
         self.thetaw = 0
@@ -98,6 +98,16 @@ class Robot:
     def draw(self, map):
         map.blit(self.rotated, self.rect)
 
+    def route(self):
+        if (self.x < 1000 and self.y < 200):
+            self.theta = 0
+        if (self.x > 1000 and self.y < 100):
+            self.theta = 5
+        if (self.x < 1000 and self.y > 200):
+            self.theta = 25
+        if (self.x > 1000 and self.y > 100):
+            self.theta = 0
+
     def move(self, event=None):
         # Mathematical differential-drive model
 
@@ -110,7 +120,7 @@ class Robot:
         # delta_d = math.sqrt(delta_x**2 + delta_y**2)
         delta_d = 1.5
 
-        self.theta = 5
+        # self.route()
         self.x = x_last + delta_d*math.cos(self.theta)
         self.y = y_last + delta_d*math.sin(self.theta)
 
@@ -122,9 +132,9 @@ class Robot:
         x_last_v, y_last_v, theta_last_v = odometry.positions[-1]
 
         odometry.x = x_last_v + (delta_d + odometry.vd) * \
-            math.cos(odometry.theta)
+            math.cos(self.theta)
         odometry.y = y_last_v + (delta_d + odometry.vd) * \
-            math.sin(odometry.theta)
+            math.sin(self.theta)
         odometry.theta = theta_last_v + delta_theta + odometry.vtheta
         error_pose = [odometry.x, odometry.y, odometry.theta]
 
@@ -243,7 +253,6 @@ for value in odometry.positionsKalman:
 plt.figure()
 plt.grid()
 plt.plot(x_real, y_real, 'g', label="Robot")
-plt.plot(x_error, y_error, 'r', label="Erro")
 plt.plot(x_filterKalman, y_filterKalman, 'b--', label="Kalman Filter")
 plt.legend(loc='upper center')
 plt.show()
