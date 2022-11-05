@@ -242,7 +242,8 @@ for value in odometry.positionsKalman:
 
 plt.figure()
 plt.grid()
-plt.plot(x_real, y_real, 'g')
-plt.plot(x_error, y_error, 'r')
-plt.plot(x_filterKalman, y_filterKalman, 'b--')
+plt.plot(x_real, y_real, 'g', label="Robot")
+plt.plot(x_error, y_error, 'r', label="Erro")
+plt.plot(x_filterKalman, y_filterKalman, 'b--', label="Kalman Filter")
+plt.legend(loc='upper center')
 plt.show()
