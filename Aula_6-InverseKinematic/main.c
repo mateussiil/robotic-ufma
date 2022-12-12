@@ -47,8 +47,10 @@ void inverseKinematics(double x, double y, double phi)
     phi = phi * M_PI / 180;
 
     // Getting x' and y'
-    x1 = x - L3 * cos(phi);
-    y_1 = y - L3 * sin(phi);
+    /* x1 = x - L3 * cos(phi);
+    y_1 = y - L3 * sin(phi); */
+    x1 = x - L2 * cos(phi);
+    y_1 = y - L2 * sin(phi);
 
     // Getting theta2
     cosTheta2 = (pow(x1, 2) + pow(y_1, 2) - pow(L1, 2) - pow(L2, 2)) / (2 * L1 * L2);
@@ -61,12 +63,12 @@ void inverseKinematics(double x, double y, double phi)
     theta1 = atan2(k1 * y_1 - k2 * x1, k1 * x1 + k2 * y_1);
 
     // Getting theta3
-    theta3 = phi - theta1 - theta2;
+    // theta3 = phi - theta1 - theta2;
 
     // Convert the angles from radians to degrees
     theta1 = radToDeg(theta1);
     theta2 = radToDeg(theta2);
-    theta3 = radToDeg(theta3);
+    // theta3 = radToDeg(theta3);
 }
 
 double radToDeg(double rad)
