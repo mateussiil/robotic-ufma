@@ -67,12 +67,17 @@ class JointSystem:
     def radToDeg(self, radians):
         return radians * 180 / math.pi
 
-    def inverseKinematics(self, x, y):
+    def inverseKinematics(self, x, y, inverse=False):
         x1 = x
         y1 = y
 
+
         cosTheta2 = (pow(x1, 2) + pow(y1, 2) - pow(self.L1, 2) - pow(self.L2, 2)) / (2 * L1 * L2);
         sinTheta2 = math.sqrt(1 - pow(cosTheta2, 2))
+
+        if (inverse):
+            sinTheta2 = -sinTheta2
+
         theta2 = math.atan2(sinTheta2, cosTheta2)
 
         k1 = L1 + L2*cosTheta2
@@ -101,7 +106,7 @@ while running:
             pygame_mouse_pos = pygame.mouse.get_pos()
             show_mouse_pos(pygame_mouse_pos)
 
-    theta1, theta2 = joint_system.inverseKinematics(x, y)
+    theta1, theta2 = joint_system.inverseKinematics(x, y, True)
 
     screen.fill(bg_color)
 
